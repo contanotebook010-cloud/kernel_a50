@@ -19,6 +19,19 @@ jobs:
       - name: Toolchain (Proton Clang)
         run: git clone --depth=1 https://github.com/kdrag0n/proton-clang $HOME/clang
 
+      - name: Diagnóstico e ajuste do clang
+        run: |
+          export PATH=$HOME/clang/bin:$PATH
+          echo "== libs faltando =="
+          ldd $HOME/clang/bin/clang | grep "not found" || echo "nenhuma"
+          if ldd $HOME/clang/bin/clang | grep -q "libtinfo.so.5 => not found"; then
+            sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5
+          fi
+          echo "== clang --version =="
+          clang --version
+          echo "== teste de compilação =="
+          echo 'int main(void){return 0;}' | clang --target=aarch64-linux-gnu -fstack-protector-strong -x c - -c -o /dev/null && echo "clang OK"
+
       - name: Baixar KernelSU v0.9.5
         run: |
           git clone https://github.com/tiann/KernelSU KernelSU
@@ -31,7 +44,8 @@ jobs:
           make -j$(nproc) O=out ARCH=arm64 \
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            HOSTCC="gcc -fcommon"
 
       - name: Empacotar (AnyKernel3)
         run: |
