@@ -26,12 +26,21 @@ jobs:
 
       - name: Compilar
         run: |
-          export PATH=/usr/bin:$HOME/clang/bin:$PATH
-          echo "as do ARM64: $(which aarch64-linux-gnu-as)"
-          make O=out ARCH=arm64 CC=$HOME/clang/bin/clang a50-lemonade_defconfig
+          # Pasta com as ferramentas ARM64 do Ubuntu, com e sem prefixo
+          mkdir -p $HOME/arm64bin
+          for f in /usr/bin/aarch64-linux-gnu-*; do
+            n=$(basename $f)
+            ln -sf $f $HOME/arm64bin/$n
+            ln -sf $f $HOME/arm64bin/${n#aarch64-linux-gnu-}
+          done
+          echo "as da pasta: $(readlink -f $HOME/arm64bin/as)"
+
+          export PATH=$HOME/clang/bin:$PATH
+          make O=out ARCH=arm64 CC=$HOME/clang/bin/clang \
+            CROSS_COMPILE=$HOME/arm64bin/aarch64-linux-gnu- a50-lemonade_defconfig
           make -j$(nproc) O=out ARCH=arm64 \
             CC=$HOME/clang/bin/clang CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE=$HOME/arm64bin/aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             HOSTCC="gcc -fcommon"
 
