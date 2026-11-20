@@ -37,6 +37,29 @@ jobs:
           git clone https://github.com/tiann/KernelSU KernelSU
           git -C KernelSU checkout v0.9.5
 
+      - name: Diagnóstico das flags do kernel
+        continue-on-error: true
+        run: |
+          export PATH=$HOME/clang/bin:$PATH
+          make O=out ARCH=arm64 a50-lemonade_defconfig > /dev/null
+          cat > $HOME/ccwrap <<'EOS'
+          #!/bin/bash
+          "$HOME/clang/bin/clang" "$@" 2>/tmp/cc.last
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "ARGS: $*" >> /tmp/cc.err
+            cat /tmp/cc.last >> /tmp/cc.err
+          fi
+          cat /tmp/cc.last >&2
+          exit $rc
+          EOS
+          chmod +x $HOME/ccwrap
+          make -j1 O=out ARCH=arm64 CC=$HOME/ccwrap CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            HOSTCC="gcc -fcommon" prepare-compiler-check || true
+          echo "===== PRIMEIROS ERROS DO CLANG ====="
+          head -n 40 /tmp/cc.err || echo "sem erros registrados"
+
       - name: Compilar
         run: |
           export PATH=$HOME/clang/bin:$PATH
