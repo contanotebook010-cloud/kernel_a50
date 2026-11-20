@@ -1,39 +1,43 @@
-name: LemonKernel
+name: A50 + KernelSU-Next
 
 on:
-  push:
-    branches:
-      - Lineage-20
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-22.04
     steps:
-      - name: Check Out
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set Current Date
-        uses: szenius/set-timezone@v1.2
-        with:
-          timezoneLinux: "America/Sao_Paulo"
-
-      - name: Setting up the environment
+      - name: Dependências
         run: |
           sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install build-essential gcc-aarch64-linux-gnu -y
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev \
+            device-tree-compiler zip git python3 lz4 cpio \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Cloning script
-        run: git clone https://github.com/GiovanYCringe/kernel-build build/
+      - name: Toolchain (Proton Clang)
+        run: git clone --depth=1 https://github.com/kdrag0n/proton-clang $HOME/clang
 
-      - name: Build
-        run: ./build/build.sh
+      - name: Compilar
+        run: |
+          export PATH=$HOME/clang/bin:$PATH
+          make O=out ARCH=arm64 a50-lemonade_defconfig
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
-      - name: Upload to Telegram
-        uses: appleboy/telegram-action@master
+      - name: Empacotar (AnyKernel3)
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
+          cp out/arch/arm64/boot/Image ak3/Image
+          sed -i -E 's/do.devicecheck=1/do.devicecheck=0/' ak3/anykernel.sh
+          sed -i -E 's#^(block|BLOCK)=.*#\1=auto;#' ak3/anykernel.sh
+          cd ak3 && zip -r9 ../A50-KSU-Next.zip . -x ".git*" "README.md"
+
+      - uses: actions/upload-artifact@v4
         with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          document: Lemonade-a505f-*.zip
-          message: "New Lemonade Kernel Update! Download Now!!"
+          name: A50-KSU-Next
+          path: A50-KSU-Next.zip
+          if-no-files-found: error
